@@ -1,15 +1,37 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const path = require('path');
 const { uIOhook, UiohookKey } = require('uiohook-napi');
 
-const APP_COMMANDS = {
-  'iTerm':       'open -a iTerm',
-  'VS Code':     'open -a "Visual Studio Code"',
-  'Spotify':     'open -a Spotify',
-  'Zen Browser': 'open -a Zen',
-  'Finder':      'open -a Finder',
+const APP_CONFIG = {
+  'iTerm':       { cmd: 'open -a iTerm',                process: 'iTerm2'  },
+  'VS Code':     { cmd: 'open -a "Visual Studio Code"', process: 'Code'    },
+  'Spotify':     { cmd: 'open -a Spotify',              process: 'Spotify' },
+  'Zen Browser': { cmd: 'open -a Zen',                  process: 'Zen'     },
+  'Finder':      { cmd: 'open -a Finder',               process: 'Finder'  },
 };
+
+function launchOrMinimize(appName) {
+  const config = APP_CONFIG[appName];
+  if (!config) return;
+
+  // Use osascript to check if the app is currently frontmost.
+  // If it is, hide (minimize) it. Otherwise open/focus it.
+  execFile('osascript', [
+    '-e', `tell application "System Events"`,
+    '-e', `  if exists (first process whose name is "${config.process}") then`,
+    '-e', `    set proc to first process whose name is "${config.process}"`,
+    '-e', `    if frontmost of proc is true then`,
+    '-e', `      set visible of proc to false`,
+    '-e', `      return`,
+    '-e', `    end if`,
+    '-e', `  end if`,
+    '-e', `end tell`,
+    '-e', `do shell script "${config.cmd}"`,
+  ], (err) => {
+    if (err) console.error('Launch/minimize failed:', err.message);
+  });
+}
 
 let win = null;
 let tray = null;
@@ -75,11 +97,7 @@ function hideWheel() {
   win.webContents.send('hide-wheel');
   win.hide();
 
-  if (appToLaunch && APP_COMMANDS[appToLaunch]) {
-    exec(APP_COMMANDS[appToLaunch], (err) => {
-      if (err) console.error('Launch failed:', err.message);
-    });
-  }
+  if (appToLaunch) launchOrMinimize(appToLaunch);
 }
 
 function startHook() {

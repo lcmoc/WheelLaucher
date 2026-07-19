@@ -109,8 +109,9 @@ function updateHover(mouseX, mouseY) {
       el.classList.toggle('hovered', el.dataset.app === found);
     });
     window.electronAPI.updateHover(currentHovered);
-    // Give the OS cursor to our window when over an item, release it otherwise
+    // Toggle OS cursor: claim the window when over an item so we can show pointer
     window.electronAPI.setIgnoreMouseEvents(!found);
+    document.body.style.cursor = found ? 'pointer' : '';
   }
 }
 
@@ -161,6 +162,8 @@ window.electronAPI.onHideWheel(() => {
     el.classList.remove('hovered', 'visible');
   });
   currentHovered = null;
+  document.body.style.cursor = '';
+  window.electronAPI.setIgnoreMouseEvents(true);
 
   if (mouseMoveHandler) {
     document.removeEventListener('mousemove', mouseMoveHandler);
