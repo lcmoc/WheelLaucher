@@ -45,7 +45,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Wheel Launcher');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Hold ⌥ Option to open wheel', enabled: false },
+    { label: 'Hold ⌃ Control to open wheel', enabled: false },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]));
@@ -102,7 +102,7 @@ function hideWheel() {
 
 function startHook() {
   uIOhook.on('keydown', (e) => {
-    if (e.keycode === UiohookKey.Alt || e.keycode === UiohookKey.AltRight) {
+    if (e.keycode === UiohookKey.Ctrl || e.keycode === UiohookKey.CtrlRight) {
       if (!keyIsDown) {
         keyIsDown = true;
         showWheel();
@@ -115,7 +115,7 @@ function startHook() {
   });
 
   uIOhook.on('keyup', (e) => {
-    if (e.keycode === UiohookKey.Alt || e.keycode === UiohookKey.AltRight) {
+    if (e.keycode === UiohookKey.Ctrl || e.keycode === UiohookKey.CtrlRight) {
       keyIsDown = false;
       hideWheel();
     }
