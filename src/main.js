@@ -18,7 +18,7 @@ let keyIsDown = false;
 let currentHoveredApp = null;
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'trayIconTemplate.png'));
+  const icon = nativeImage.createFromPath(path.join(__dirname, '/../assets', 'trayIconTemplate.png'));
   icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('Wheel Launcher');
@@ -130,6 +130,21 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   startHook();
+
+  // Hot reload (development only)
+  if (process.env.NODE_ENV === 'development') {
+    const { mainReloader, rendererReloader } = require('electron-hot-reload');
+    const mainFile = path.join(__dirname, 'main.js');
+    const rendererFile = path.join(__dirname, 'renderer', 'index.html');
+
+    mainReloader(mainFile, (error, filePath) => {
+      console.log('[hot-reload] main changed:', filePath);
+    });
+
+    rendererReloader(rendererFile, (error, filePath) => {
+      console.log('[hot-reload] renderer changed:', filePath);
+    });
+  }
 });
 
 app.on('before-quit', () => {
@@ -139,3 +154,5 @@ app.on('before-quit', () => {
 app.on('window-all-closed', (e) => {
   e.preventDefault();
 });
+
+

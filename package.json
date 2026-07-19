@@ -2,20 +2,23 @@
   "name": "mac-wheel-launcher",
   "version": "1.0.0",
   "description": "macOS radial app launcher",
-  "main": "main.js",
+  "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "NODE_ENV=development electron .",
     "rebuild": "electron-rebuild -f -w uiohook-napi",
     "postinstall": "electron-rebuild -f -w uiohook-napi",
     "package": "electron-packager . WheelLauncher --platform=darwin --arch=arm64 --out=dist --overwrite --ignore='^/dist'",
     "install-app": "npm run package && cp -r dist/WheelLauncher-darwin-arm64/WheelLauncher.app /Applications/"
   },
   "dependencies": {
+    "electron-hot-reload": "^0.1.4",
+    "elemon": "^5.0.3",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
-    "electron": "43.1.1",
     "@electron/rebuild": "4.2.0",
-    "electron-packager": "17.1.2"
+    "electron": "43.1.1",
+    "electron-packager": "17.1.2",
+    "electron-reloader": "^1.2.3"
   }
 }

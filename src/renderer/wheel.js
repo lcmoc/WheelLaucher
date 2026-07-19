@@ -1,14 +1,21 @@
+// Build absolute file:// icon URLs using the path exposed by the preload
+const ICONS_ROOT = window.electronAPI.iconsPath;
+function iconUrl(filename) {
+  return `file://${ICONS_ROOT}/${filename}`;
+}
+
+// App names must match the keys in APP_COMMANDS in main.js exactly
 const APPS = [
-  { name: 'iTerm',       icon: '../assets/icons/iTerm.png' },
-  { name: 'VS Code',     icon: '../assets/icons/VSCode.png' },
-  { name: 'Spotify',     icon: '../assets/icons/Spotify.png' },
-  { name: 'Zen Browser', icon: '../assets/icons/Zen.png' },
-  { name: 'Finder',      icon: '../assets/icons/Finder.png' },
+  { name: 'iTerm',       icon: iconUrl('iTerm.png')   },
+  { name: 'VS Code',     icon: iconUrl('VSCode.png')  },
+  { name: 'Spotify',     icon: iconUrl('Spotify.png') },
+  { name: 'Zen Browser', icon: iconUrl('Zen.png')     },
+  { name: 'Finder',      icon: iconUrl('Finder.png')  },
 ];
 
-const RADIUS = 120;
+const RADIUS     = 120;
 const HIT_RADIUS = 46;
-const STAGGER_MS = 30;
+const STAGGER_MS = 40;
 
 function computeItemPositions() {
   return APPS.map((app, i) => {
@@ -49,10 +56,10 @@ function buildWheel(root) {
     label.textContent = item.name;
     el.appendChild(label);
 
-    el.style.left = '50%';
-    el.style.top = '50%';
-    el.style.marginLeft = item.offsetX + 'px';
-    el.style.marginTop = item.offsetY + 'px';
+    // Position relative to container center using transform offset
+    el.style.left = `calc(50% + ${item.offsetX}px)`;
+    el.style.top  = `calc(50% + ${item.offsetY}px)`;
+
     container.appendChild(el);
   });
 
@@ -65,11 +72,11 @@ function buildWheel(root) {
   };
 }
 
-let currentHovered = null;
-let wheelCenterX = 0;
-let wheelCenterY = 0;
+let currentHovered  = null;
+let wheelCenterX    = 0;
+let wheelCenterY    = 0;
 let mouseMoveHandler = null;
-let staggerTimers = [];
+let staggerTimers   = [];
 
 const root = document.getElementById('wheel-root');
 const { container, items, elements } = buildWheel(root);
@@ -85,7 +92,7 @@ function updateHover(mouseX, mouseY) {
   for (let i = 0; i < items.length; i++) {
     const itemX = wheelCenterX + items[i].offsetX;
     const itemY = wheelCenterY + items[i].offsetY;
-    const dist = Math.hypot(mouseX - itemX, mouseY - itemY);
+    const dist  = Math.hypot(mouseX - itemX, mouseY - itemY);
     if (dist < HIT_RADIUS) {
       found = items[i].name;
       break;
@@ -107,36 +114,35 @@ window.electronAPI.onShowWheel(({ x, y }) => {
   currentHovered = null;
   window.electronAPI.updateHover(null);
 
+  // Center the container on the cursor
   container.style.left = x + 'px';
-  container.style.top = y + 'px';
+  container.style.top  = y + 'px';
 
-  // Reset items to invisible before stagger-in
+  // Reset all items to hidden state instantly (no transition)
   clearStaggerTimers();
   elements.forEach((el) => {
     el.style.transition = 'none';
-    el.classList.remove('hovered');
+    el.classList.remove('hovered', 'visible');
   });
   container.classList.remove('visible');
 
-  // Force reflow so transition resets land before we re-add .visible
-  container.offsetHeight;
+  // Force reflow so the "no transition" state sticks before we re-enable
+  void container.offsetHeight;
 
   elements.forEach((el) => {
     el.style.transition = '';
   });
 
-  // Stagger each item in with a small delay
+  // Show the backdrop/center-dot immediately
+  container.classList.add('visible');
+
+  // Stagger each item in individually
   elements.forEach((el, i) => {
     const t = setTimeout(() => {
-      el.style.transitionDelay = '0ms';
-      container.classList.add('visible');
+      el.classList.add('visible');
     }, i * STAGGER_MS);
     staggerTimers.push(t);
   });
-
-  // Ensure container.visible is set immediately for center dot + backdrop
-  container.offsetHeight;
-  container.classList.add('visible');
 
   mouseMoveHandler = (e) => updateHover(e.clientX, e.clientY);
   document.addEventListener('mousemove', mouseMoveHandler);
@@ -145,7 +151,9 @@ window.electronAPI.onShowWheel(({ x, y }) => {
 window.electronAPI.onHideWheel(() => {
   clearStaggerTimers();
   container.classList.remove('visible');
-  elements.forEach((el) => el.classList.remove('hovered'));
+  elements.forEach((el) => {
+    el.classList.remove('hovered', 'visible');
+  });
   currentHovered = null;
 
   if (mouseMoveHandler) {
