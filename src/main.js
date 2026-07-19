@@ -110,6 +110,12 @@ ipcMain.on('hover-update', (_event, appName) => {
   currentHoveredApp = appName;
 });
 
+ipcMain.on('set-ignore-mouse-events', (_event, ignore) => {
+  if (win) {
+    win.setIgnoreMouseEvents(ignore, { forward: true });
+  }
+});
+
 app.whenReady().then(() => {
   app.dock.hide();
 

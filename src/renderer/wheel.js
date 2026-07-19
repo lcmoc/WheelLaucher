@@ -13,8 +13,8 @@ const APPS = [
   { name: 'Finder',      icon: iconUrl('Finder.png')  },
 ];
 
-const RADIUS     = 120;
-const HIT_RADIUS = 46;
+const RADIUS     = 150;
+const HIT_RADIUS = 58;
 const STAGGER_MS = 40;
 
 function computeItemPositions() {
@@ -35,6 +35,10 @@ function buildWheel(root) {
   const container = document.createElement('div');
   container.className = 'wheel-container';
   container.id = 'wheel';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'wheel-backdrop';
+  container.appendChild(backdrop);
 
   const centerDot = document.createElement('div');
   centerDot.className = 'wheel-center';
@@ -105,6 +109,8 @@ function updateHover(mouseX, mouseY) {
       el.classList.toggle('hovered', el.dataset.app === found);
     });
     window.electronAPI.updateHover(currentHovered);
+    // Give the OS cursor to our window when over an item, release it otherwise
+    window.electronAPI.setIgnoreMouseEvents(!found);
   }
 }
 
