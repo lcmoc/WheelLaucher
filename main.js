@@ -1,0 +1,141 @@
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
+const { exec } = require('child_process');
+const path = require('path');
+const { uIOhook, UiohookKey } = require('uiohook-napi');
+
+const APP_COMMANDS = {
+  'iTerm':       'open -a iTerm',
+  'VS Code':     'open -a "Visual Studio Code"',
+  'Spotify':     'open -a Spotify',
+  'Zen Browser': 'open -a Zen',
+  'Finder':      'open -a Finder',
+};
+
+let win = null;
+let tray = null;
+let wheelVisible = false;
+let keyIsDown = false;
+let currentHoveredApp = null;
+
+function createTray() {
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'trayIconTemplate.png'));
+  icon.setTemplateImage(true);
+  tray = new Tray(icon);
+  tray.setToolTip('Wheel Launcher');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Hold ⌥ Option to open wheel', enabled: false },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ]));
+}
+
+function createWindow() {
+  win = new BrowserWindow({
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    show: false,
+    type: 'panel',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.setIgnoreMouseEvents(true, { forward: true });
+  win.setAlwaysOnTop(true, 'screen-saver');
+}
+
+function showWheel() {
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+
+  win.setBounds(display.bounds);
+
+  const localX = cursor.x - display.bounds.x;
+  const localY = cursor.y - display.bounds.y;
+
+  win.showInactive();
+  win.webContents.send('show-wheel', { x: localX, y: localY });
+  wheelVisible = true;
+}
+
+function hideWheel() {
+  if (!wheelVisible) return;
+  wheelVisible = false;
+  const appToLaunch = currentHoveredApp;
+  currentHoveredApp = null;
+
+  win.webContents.send('hide-wheel');
+  win.hide();
+
+  if (appToLaunch && APP_COMMANDS[appToLaunch]) {
+    exec(APP_COMMANDS[appToLaunch], (err) => {
+      if (err) console.error('Launch failed:', err.message);
+    });
+  }
+}
+
+function startHook() {
+  uIOhook.on('keydown', (e) => {
+    if (e.keycode === UiohookKey.Alt || e.keycode === UiohookKey.AltRight) {
+      if (!keyIsDown) {
+        keyIsDown = true;
+        showWheel();
+      }
+    }
+    if (e.keycode === UiohookKey.Escape && wheelVisible) {
+      keyIsDown = false;
+      hideWheel();
+    }
+  });
+
+  uIOhook.on('keyup', (e) => {
+    if (e.keycode === UiohookKey.Alt || e.keycode === UiohookKey.AltRight) {
+      keyIsDown = false;
+      hideWheel();
+    }
+  });
+
+  uIOhook.start();
+}
+
+ipcMain.on('hover-update', (_event, appName) => {
+  currentHoveredApp = appName;
+});
+
+app.whenReady().then(() => {
+  app.dock.hide();
+
+  const { systemPreferences, dialog } = require('electron');
+  if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+    systemPreferences.isTrustedAccessibilityClient(true);
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      title: 'Accessibility Permission Required',
+      message: 'WheelLauncher needs Accessibility access to detect key presses.',
+      detail: 'Go to System Settings → Privacy & Security → Accessibility and enable WheelLauncher, then relaunch the app.',
+      buttons: ['Quit'],
+    });
+    app.quit();
+    return;
+  }
+
+  createWindow();
+  createTray();
+  startHook();
+});
+
+app.on('before-quit', () => {
+  uIOhook.stop();
+});
+
+app.on('window-all-closed', (e) => {
+  e.preventDefault();
+});
