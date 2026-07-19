@@ -132,18 +132,23 @@ app.whenReady().then(() => {
   startHook();
 
   // Hot reload (development only)
+  // API: reloader(paths, ignored, handler, options)
   if (process.env.NODE_ENV === 'development') {
     const { mainReloader, rendererReloader } = require('electron-hot-reload');
-    const mainFile = path.join(__dirname, 'main.js');
-    const rendererFile = path.join(__dirname, 'renderer', 'index.html');
 
-    mainReloader(mainFile, (error, filePath) => {
-      console.log('[hot-reload] main changed:', filePath);
-    });
+    // Watch main.js + preload.js → relaunches the whole app
+    mainReloader(
+      [path.join(__dirname, 'main.js'), path.join(__dirname, 'preload.js')],
+      undefined,
+      (error, filePath) => { if (filePath) console.log('[hot-reload] main changed:', filePath); }
+    );
 
-    rendererReloader(rendererFile, (error, filePath) => {
-      console.log('[hot-reload] renderer changed:', filePath);
-    });
+    // Watch entire renderer folder → reloads the BrowserWindow
+    rendererReloader(
+      path.join(__dirname, 'renderer'),
+      undefined,
+      (error, filePath) => { if (filePath) console.log('[hot-reload] renderer changed:', filePath); }
+    );
   }
 });
 
