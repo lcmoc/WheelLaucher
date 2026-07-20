@@ -35,6 +35,25 @@ function getFrontmostLauncherApp(callback) {
   });
 }
 
+function getRunningLauncherApps(callback) {
+  execFile('osascript', [
+    '-e', 'tell application "System Events"',
+    '-e', '  return bundle identifier of every process',
+    '-e', 'end tell',
+  ], { timeout: 3_000 }, (err, stdout) => {
+    if (err) {
+      callback([]);
+      return;
+    }
+
+    const runningBundleIds = new Set(stdout.trim().split(/,\s*/));
+    const runningApps = Object.entries(APP_CONFIG)
+      .filter(([, config]) => runningBundleIds.has(config.bundleId))
+      .map(([appName]) => appName);
+    callback(runningApps);
+  });
+}
+
 function launchOrMinimize(appName) {
   const config = APP_CONFIG[appName];
   if (!config) return;
@@ -156,6 +175,10 @@ ipcMain.on('hover-update', (_event, appName) => {
 
 ipcMain.handle('get-frontmost-launcher-app', () => new Promise((resolve) => {
   getFrontmostLauncherApp((appName) => resolve(appName));
+}));
+
+ipcMain.handle('get-running-launcher-apps', () => new Promise((resolve) => {
+  getRunningLauncherApps(resolve);
 }));
 
 ipcMain.on('set-ignore-mouse-events', (_event, ignore) => {

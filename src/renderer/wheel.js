@@ -149,6 +149,7 @@ function getHoveredIndex(mouseX, mouseY) {
 
 let currentHovered   = null;
 let frontmostApp     = null;
+let runningApps      = null;
 let wheelCenterX     = 0;
 let wheelCenterY     = 0;
 let mouseMoveHandler = null;
@@ -167,13 +168,20 @@ function setSectorHover(appName) {
   sectorPaths.forEach((path) => {
     const active = path.dataset.app === appName;
     const willMinimize = active && appName === frontmostApp;
+    const isNotOpen = runningApps !== null && !runningApps.has(path.dataset.app);
     path.style.fill = willMinimize
       ? 'rgba(235, 80, 80, 0.28)'
+      : isNotOpen
+      ? active
+        ? 'rgba(92, 194, 122, 0.26)'
+        : 'rgba(72, 164, 96, 0.12)'
       : active
-      ? 'rgba(255, 255, 255, 0.16)'
-      : 'rgba(255, 255, 255, 0.05)';
+        ? 'rgba(255, 255, 255, 0.16)'
+        : 'rgba(255, 255, 255, 0.05)';
     path.style.stroke = willMinimize
       ? 'rgba(255, 125, 125, 0.42)'
+      : isNotOpen
+        ? 'rgba(116, 210, 141, 0.30)'
       : 'rgba(255, 255, 255, 0.12)';
   });
 }
@@ -204,6 +212,7 @@ window.electronAPI.onShowWheel(({ x, y }) => {
   wheelCenterY = y;
   currentHovered = null;
   frontmostApp = null;
+  runningApps = null;
   window.electronAPI.updateHover(null);
 
   container.style.left = x + 'px';
@@ -235,6 +244,12 @@ window.electronAPI.onShowWheel(({ x, y }) => {
     frontmostApp = appName;
     setSectorHover(currentHovered);
   });
+
+  window.electronAPI.getRunningLauncherApps().then((appNames) => {
+    if (currentShow !== showSequence) return;
+    runningApps = new Set(appNames);
+    setSectorHover(currentHovered);
+  });
 });
 
 window.electronAPI.onHideWheel(() => {
@@ -245,6 +260,7 @@ window.electronAPI.onHideWheel(() => {
   setSectorHover(null);
   currentHovered = null;
   frontmostApp = null;
+  runningApps = null;
   document.body.style.cursor = '';
   window.electronAPI.setIgnoreMouseEvents(true);
 
