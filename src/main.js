@@ -1,35 +1,61 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
-const { exec, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 const { uIOhook, UiohookKey } = require('uiohook-napi');
 
 const APP_CONFIG = {
-  'iTerm':       { cmd: 'open -a iTerm',                process: 'iTerm2'  },
-  'VS Code':     { cmd: 'open -a "Visual Studio Code"', process: 'Code'    },
-  'Spotify':     { cmd: 'open -a Spotify',              process: 'Spotify' },
-  'Zen Browser': { cmd: 'open -a Zen',                  process: 'Zen'     },
-  'Finder':      { cmd: 'open -a Finder',               process: 'Finder'  },
+  'iTerm':       { application: 'iTerm',              bundleId: 'com.googlecode.iterm2', processNames: ['iTerm2', 'iTerm'] },
+  'VS Code':     { application: 'Visual Studio Code', bundleId: 'com.microsoft.VSCode', processNames: ['Code', 'Visual Studio Code'] },
+  'Spotify':     { application: 'Spotify',            bundleId: 'com.spotify.client', processNames: ['Spotify'] },
+  'Zen Browser': {
+    application: 'Zen',
+    bundleId: 'app.zen-browser.zen',
+    processNames: ['Zen', 'Zen Browser', 'zen'],
+  },
+  'Finder':      { application: 'Finder',              bundleId: 'com.apple.finder', processNames: ['Finder'] },
 };
+
+function getFrontmostLauncherApp(callback) {
+  execFile('osascript', [
+    '-e', 'tell application "System Events"',
+    '-e', '  set frontmostProcess to first process whose frontmost is true',
+    '-e', '  return (name of frontmostProcess) & linefeed & (bundle identifier of frontmostProcess)',
+    '-e', 'end tell',
+  ], { timeout: 3_000 }, (err, stdout) => {
+    if (err) {
+      callback(null, null);
+      return;
+    }
+
+    const [processName, bundleId] = stdout.trim().split(/\r?\n/);
+    const matchedApp = Object.entries(APP_CONFIG).find(([, config]) =>
+      (config.bundleId && config.bundleId === bundleId) || config.processNames.includes(processName),
+    );
+    callback(matchedApp ? matchedApp[0] : null, processName);
+  });
+}
 
 function launchOrMinimize(appName) {
   const config = APP_CONFIG[appName];
   if (!config) return;
 
-  // Use osascript to check if the app is currently frontmost.
-  // If it is, hide (minimize) it. Otherwise open/focus it.
-  execFile('osascript', [
-    '-e', `tell application "System Events"`,
-    '-e', `  if exists (first process whose name is "${config.process}") then`,
-    '-e', `    set proc to first process whose name is "${config.process}"`,
-    '-e', `    if frontmost of proc is true then`,
-    '-e', `      set visible of proc to false`,
-    '-e', `      return`,
-    '-e', `    end if`,
-    '-e', `  end if`,
-    '-e', `end tell`,
-    '-e', `do shell script "${config.cmd}"`,
-  ], (err) => {
-    if (err) console.error('Launch/minimize failed:', err.message);
+  // Make the action decision at release time, rather than relying on a stale
+  // renderer value. This also keeps the visual hint and release action aligned.
+  getFrontmostLauncherApp((frontmostApp, processName) => {
+    if (frontmostApp === appName) {
+      execFile('osascript', [
+        '-e', 'tell application "System Events"',
+        '-e', `  set visible of process "${processName}" to false`,
+        '-e', 'end tell',
+      ], (err) => {
+        if (err) console.error('Launch/minimize failed:', err.message);
+      });
+      return;
+    }
+
+    execFile('open', ['-a', config.application], (err) => {
+      if (err) console.error('Launch/minimize failed:', err.message);
+    });
   });
 }
 
@@ -128,6 +154,10 @@ ipcMain.on('hover-update', (_event, appName) => {
   currentHoveredApp = appName;
 });
 
+ipcMain.handle('get-frontmost-launcher-app', () => new Promise((resolve) => {
+  getFrontmostLauncherApp((appName) => resolve(appName));
+}));
+
 ipcMain.on('set-ignore-mouse-events', (_event, ignore) => {
   if (win) {
     win.setIgnoreMouseEvents(ignore, { forward: true });
@@ -155,19 +185,13 @@ app.whenReady().then(() => {
   createTray();
   startHook();
 
-  // Hot reload (development only)
-  // API: reloader(paths, ignored, handler, options)
+  // Hot reload (development only). Keep the native keyboard hook in a stable
+  // main process: restarting it from a file watcher can crash uiohook-napi.
   if (process.env.NODE_ENV === 'development') {
-    const { mainReloader, rendererReloader } = require('electron-hot-reload');
+    const { rendererReloader } = require('electron-hot-reload');
 
-    // Watch main.js + preload.js → relaunches the whole app
-    mainReloader(
-      [path.join(__dirname, 'main.js'), path.join(__dirname, 'preload.js')],
-      undefined,
-      (error, filePath) => { if (filePath) console.log('[hot-reload] main changed:', filePath); }
-    );
-
-    // Watch entire renderer folder → reloads the BrowserWindow
+    // Renderer edits still reload the BrowserWindow automatically. Restart
+    // `npm start` after changing main.js or preload.js.
     rendererReloader(
       path.join(__dirname, 'renderer'),
       undefined,
@@ -183,5 +207,3 @@ app.on('before-quit', () => {
 app.on('window-all-closed', (e) => {
   e.preventDefault();
 });
-
-

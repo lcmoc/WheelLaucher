@@ -148,10 +148,12 @@ function getHoveredIndex(mouseX, mouseY) {
 // ── state ────────────────────────────────────────────────────────────────────
 
 let currentHovered   = null;
+let frontmostApp     = null;
 let wheelCenterX     = 0;
 let wheelCenterY     = 0;
 let mouseMoveHandler = null;
 let staggerTimers    = [];
+let showSequence      = 0;
 
 const root = document.getElementById('wheel-root');
 const { container, items, elements, sectorPaths } = buildWheel(root);
@@ -164,9 +166,15 @@ function clearStaggerTimers() {
 function setSectorHover(appName) {
   sectorPaths.forEach((path) => {
     const active = path.dataset.app === appName;
-    path.style.fill = active
+    const willMinimize = active && appName === frontmostApp;
+    path.style.fill = willMinimize
+      ? 'rgba(235, 80, 80, 0.28)'
+      : active
       ? 'rgba(255, 255, 255, 0.16)'
       : 'rgba(255, 255, 255, 0.05)';
+    path.style.stroke = willMinimize
+      ? 'rgba(255, 125, 125, 0.42)'
+      : 'rgba(255, 255, 255, 0.12)';
   });
 }
 
@@ -191,9 +199,11 @@ function updateHover(mouseX, mouseY) {
 // ── show / hide ──────────────────────────────────────────────────────────────
 
 window.electronAPI.onShowWheel(({ x, y }) => {
+  const currentShow = ++showSequence;
   wheelCenterX = x;
   wheelCenterY = y;
   currentHovered = null;
+  frontmostApp = null;
   window.electronAPI.updateHover(null);
 
   container.style.left = x + 'px';
@@ -219,14 +229,22 @@ window.electronAPI.onShowWheel(({ x, y }) => {
 
   mouseMoveHandler = (e) => updateHover(e.clientX, e.clientY);
   document.addEventListener('mousemove', mouseMoveHandler);
+
+  window.electronAPI.getFrontmostLauncherApp().then((appName) => {
+    if (currentShow !== showSequence) return;
+    frontmostApp = appName;
+    setSectorHover(currentHovered);
+  });
 });
 
 window.electronAPI.onHideWheel(() => {
+  showSequence += 1;
   clearStaggerTimers();
   container.classList.remove('visible');
   elements.forEach((el) => el.classList.remove('hovered', 'visible'));
   setSectorHover(null);
   currentHovered = null;
+  frontmostApp = null;
   document.body.style.cursor = '';
   window.electronAPI.setIgnoreMouseEvents(true);
 
