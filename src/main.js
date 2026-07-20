@@ -78,11 +78,23 @@ function launchOrMinimize(appName) {
   });
 }
 
+function closeApp(appName) {
+  const config = APP_CONFIG[appName];
+  if (!config) return;
+
+  execFile('osascript', [
+    '-e', `tell application id "${config.bundleId}" to quit`,
+  ], (err) => {
+    if (err) console.error('Close app failed:', err.message);
+  });
+}
+
 let win = null;
 let tray = null;
 let wheelVisible = false;
 let keyIsDown = false;
 let currentHoveredApp = null;
+let currentHoveredAction = 'activate';
 
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, '/../assets', 'trayIconTemplate.png'));
@@ -137,12 +149,17 @@ function hideWheel() {
   if (!wheelVisible) return;
   wheelVisible = false;
   const appToLaunch = currentHoveredApp;
+  const action = currentHoveredAction;
   currentHoveredApp = null;
+  currentHoveredAction = 'activate';
 
   win.webContents.send('hide-wheel');
   win.hide();
 
-  if (appToLaunch) launchOrMinimize(appToLaunch);
+  if (appToLaunch) {
+    if (action === 'close') closeApp(appToLaunch);
+    else launchOrMinimize(appToLaunch);
+  }
 }
 
 function startHook() {
@@ -169,8 +186,9 @@ function startHook() {
   uIOhook.start();
 }
 
-ipcMain.on('hover-update', (_event, appName) => {
+ipcMain.on('hover-update', (_event, appName, action = 'activate') => {
   currentHoveredApp = appName;
+  currentHoveredAction = action;
 });
 
 ipcMain.handle('get-frontmost-launcher-app', () => new Promise((resolve) => {
@@ -212,6 +230,7 @@ app.whenReady().then(() => {
   // main process: restarting it from a file watcher can crash uiohook-napi.
   if (process.env.NODE_ENV === 'development') {
     const { rendererReloader } = require('electron-hot-reload');
+     win.webContents.openDevTools({ mode: 'detach' });
 
     // Renderer edits still reload the BrowserWindow automatically. Restart
     // `npm start` after changing main.js or preload.js.

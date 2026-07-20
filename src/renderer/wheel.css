@@ -94,14 +94,42 @@ html, body {
     transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
     opacity   0.14s ease;
   will-change: transform, opacity;
+  isolation: isolate;
 }
 
 .wheel-item img {
+  position: relative;
+  z-index: 1;
   width: 68px;
   height: 68px;
   border-radius: 14px;
   pointer-events: none;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.wheel-item::after {
+  content: '\00d7';
+  position: absolute;
+  right: -3px;
+  bottom: 1px;
+  z-index: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.26);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1;
+  opacity: 0;
+  transform: translate(-7px, 7px) scale(0.6);
+  transition: opacity 0.14s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease;
+  pointer-events: none;
 }
 
 .wheel-item.visible {
@@ -118,7 +146,18 @@ html, body {
   transform: scale(1.08);
 }
 
+.wheel-item.close-control::after {
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+}
+
+.wheel-item.close-armed::after {
+  border-color: rgba(255, 143, 143, 0.65);
+  background: rgba(205, 61, 61, 0.76);
+}
+
 .wheel-label {
+  z-index: 2;
   position: absolute;
   bottom: -22px;
   left: 50%;

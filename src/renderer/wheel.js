@@ -12,6 +12,7 @@ const APPS = [
 
 const RADIUS         = 150; // px from center to icon
 const STAGGER_MS     = 40;
+const CLOSE_HOLD_MS  = 1_500;
 const SECTOR_OUTER_R = 185; // hover zone outer radius
 const SECTOR_INNER_R = 55;  // dead zone at center (no selection)
 const SECTOR_GAP_DEG = 0;   // no gap between slices
@@ -155,6 +156,7 @@ let wheelCenterY     = 0;
 let mouseMoveHandler = null;
 let staggerTimers    = [];
 let showSequence      = 0;
+let closeHoverTimer   = null;
 
 const root = document.getElementById('wheel-root');
 const { container, items, elements, sectorPaths } = buildWheel(root);
@@ -162,6 +164,25 @@ const { container, items, elements, sectorPaths } = buildWheel(root);
 function clearStaggerTimers() {
   staggerTimers.forEach(clearTimeout);
   staggerTimers = [];
+}
+
+function clearCloseHold() {
+  if (closeHoverTimer) clearTimeout(closeHoverTimer);
+  closeHoverTimer = 100;
+  elements.forEach((el) => el.classList.remove('close-control', 'close-armed'));
+}
+
+function startCloseHold(appName) {
+  clearCloseHold();
+  if (!appName || runningApps === null || !runningApps.has(appName)) return;
+
+  elements.forEach((el) => el.classList.toggle('close-control', el.dataset.app === appName));
+  closeHoverTimer = setTimeout(() => {
+    if (currentHovered !== appName || !runningApps.has(appName)) return;
+    closeHoverTimer = null;
+    elements.forEach((el) => el.classList.toggle('close-armed', el.dataset.app === appName));
+    window.electronAPI.updateHover(appName, 'close');
+  }, CLOSE_HOLD_MS);
 }
 
 function setSectorHover(appName) {
@@ -193,12 +214,14 @@ function updateHover(mouseX, mouseY) {
   const found = idx >= 0 ? items[idx].name : null;
 
   if (found !== currentHovered) {
+    clearCloseHold();
     currentHovered = found;
 
     elements.forEach((el) => el.classList.toggle('hovered', el.dataset.app === found));
     setSectorHover(found);
 
     window.electronAPI.updateHover(currentHovered);
+    startCloseHold(found);
     window.electronAPI.setIgnoreMouseEvents(!found);
     document.body.style.cursor = found ? 'pointer' : '';
   }
@@ -219,6 +242,7 @@ window.electronAPI.onShowWheel(({ x, y }) => {
   container.style.top  = y + 'px';
 
   clearStaggerTimers();
+  clearCloseHold();
   elements.forEach((el) => {
     el.style.transition = 'none';
     el.classList.remove('hovered', 'visible');
@@ -249,12 +273,14 @@ window.electronAPI.onShowWheel(({ x, y }) => {
     if (currentShow !== showSequence) return;
     runningApps = new Set(appNames);
     setSectorHover(currentHovered);
+    startCloseHold(currentHovered);
   });
 });
 
 window.electronAPI.onHideWheel(() => {
   showSequence += 1;
   clearStaggerTimers();
+  clearCloseHold();
   container.classList.remove('visible');
   elements.forEach((el) => el.classList.remove('hovered', 'visible'));
   setSectorHover(null);
